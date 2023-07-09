@@ -332,7 +332,7 @@ function ZkRank() {
             setInitialized(true); // 标记为已初始化
         }
       }, [data]);
-   
+   /* 挪走看看
     const rowSelection = {
         selectedRowKeys: selectedKeys,
         onChange: (selectedRowKeys) => {
@@ -341,6 +341,7 @@ function ZkRank() {
     };
 
     const [editingKey, setEditingKey] = useState(null);
+    */
     const columns = [
         {
             title: "#",
@@ -529,6 +530,14 @@ function ZkRank() {
             ],
         }
     ];
+    const rowSelection = {
+        selectedRowKeys: selectedKeys,
+        onChange: (selectedRowKeys) => {
+            setSelectedKeys(selectedRowKeys);
+        },
+    };
+
+    const [editingKey, setEditingKey] = useState(null);
     // const isRowSatisfyCondition = (record) => {
     //     const conditionKeyMapping = {
     //         "ETHTx": "eth_tx_amount",
