@@ -19,7 +19,8 @@ import {
     getZksLite,
     getZkSyncBridge,
     exportToExcel,
-    calculateScore
+    calculateScore,
+    getDebankValue
 } from "@utils"
 import {useEffect, useState} from "react";
 import './index.css';
@@ -313,7 +314,14 @@ function Zksync() {
                 const index = newData.findIndex(item => item.key === key);
                 if (index !== -1) {
                     const item = newData[index];
-
+                    // promisesQueue.push(() => {
+                    //     item.debank = null;
+                    //     return getDebankValue(item.address).then((debankValue) => {
+                    //         item.debank = debankValue;
+                    //         setData([...newData]);
+                    //         localStorage.setItem('addresses', JSON.stringify(newData));
+                    //     })
+                    // })
                     promisesQueue.push(() => {
                         item.zks2_balance = null;
                         item.zks2_tx_amount = null;
@@ -684,6 +692,20 @@ function Zksync() {
             },
             width: 168
         },
+        // {
+        //     title: "余额",
+        //     key: "debank",
+        //     className: "debank",
+        //     align: "center",
+        //     sorter: (a, b) => a.debank - b.debank,
+        //     render: (text, record) => {
+        //         if (record.debank === undefined) {
+        //             return <Spin/>;
+        //         }
+        //         return record.debank;
+        //     },
+        //     width: 60
+        // },
         {
             title: "ETH",
             key: "eth_group",
@@ -731,7 +753,7 @@ function Zksync() {
             ],
         },
         {
-            title: "zkSyncEra",
+            title: "zkSync Era",
             key: "zks_era_group",
             className: "zks_era",
             children: [
@@ -1147,8 +1169,7 @@ function Zksync() {
                                 totalFees += Number(totalFee);
                             })
 
-                            const emptyCells = Array(10).fill().map((_, index) => <Table.Summary.Cell
-                                index={index + 6}/>);
+                            const emptyCells = Array(10).fill().map((_, index) => <Table.Summary.Cell key={index} index={index + 10}/>);
 
                             return (
                                 <>
@@ -1164,6 +1185,8 @@ function Zksync() {
                                         {emptyCells}
                                         <Table.Summary.Cell index={19}/>
                                         <Table.Summary.Cell index={20}>{totalFees.toFixed(4)}</Table.Summary.Cell>
+                                        <Table.Summary.Cell index={21}/>
+                                        <Table.Summary.Cell index={22}/>
                                     </Table.Summary.Row>
                                 </>
                             )
@@ -1176,11 +1199,10 @@ function Zksync() {
                                     justifyContent: 'space-between',
                                     gap: '20px'
                                 }}>
-                                    <Button type="primary" onClick={() => {
-                                        setIsWalletModalVisible(true)
-                                    }} size={"large"} style={{width: "20%"}}
-                                            icon={<SettingOutlined/>}>
-                                        配置
+                                    <Button type="primary" onClick={handleRefresh} loading={isLoading}
+                                            size={"large"}
+                                            style={{width: "20%"}} icon={<SyncOutlined/>}>
+                                        {isLoading ? "正在刷新" : "刷新选中地址"}
                                     </Button>
                                     <Button type="primary" onClick={showModal} size={"large"} style={{width: "20%"}}
                                             icon={<PlusOutlined/>}>
@@ -1193,10 +1215,11 @@ function Zksync() {
                                     >
                                         {batchloading ? `添加中 进度:(${batchProgress}/${batchLength})` : "批量添加地址"}
                                     </Button>
-                                    <Button type="primary" onClick={handleRefresh} loading={isLoading}
-                                            size={"large"}
-                                            style={{width: "20%"}} icon={<SyncOutlined/>}>
-                                        {isLoading ? "正在刷新" : "刷新选中地址"}
+                                    <Button type="primary" onClick={() => {
+                                        setIsWalletModalVisible(true)
+                                    }} size={"large"} style={{width: "20%"}}
+                                            icon={<SettingOutlined/>}>
+                                        配置
                                     </Button>
                                     <Popconfirm title={"确认删除" + selectedKeys.length + "个地址？"}
                                                 onConfirm={handleDeleteSelected}>
