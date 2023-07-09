@@ -334,7 +334,8 @@ function ZkRank() {
       }, [data]);
    
     const rowSelection = {
-        selectedRowKeys: selectedKeys,
+        //selectedRowKeys: selectedKeys,
+        selectedRowKeys: allKeys,
         onChange: (selectedRowKeys) => {
             setSelectedKeys(selectedRowKeys);
         },
