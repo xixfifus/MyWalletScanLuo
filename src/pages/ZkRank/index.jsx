@@ -596,6 +596,19 @@ function ZkRank() {
                         }}
                         footer={() => (
                             <Card>
+                              <div style={{
+                                width: '100%',
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center'
+                              }}>
+                                <div style={{flexGrow: 1}}></div> {/* 占位元素 */}
+                                <Button type="primary" onClick={handleRefresh} loading={isLoading} size={"large"} style={{width: "20%"}} icon={<SyncOutlined/>}>
+                                  {isLoading ? "正在刷新" : "刷新选中地址"}
+                                </Button>
+                              </div>
+                            </Card>
+                         /*   <Card>
                                 <div style={{
                                     width: '100%',
                                     display: 'flex',
@@ -608,7 +621,7 @@ function ZkRank() {
                                         {isLoading ? "正在刷新" : "刷新选中地址"}
                                     </Button>
                                 </div>
-                            </Card>
+                            </Card>*/
                         )
                         }
                     />
