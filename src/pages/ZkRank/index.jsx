@@ -568,7 +568,7 @@ function ZkRank() {
             <Content>
                 <Spin spinning={tableLoading}>
                     <Table
-                        rowSelection={rowSelection}
+                        //第一行
                         dataSource={taskData}
                         pagination={false}
                         bordered={true}
@@ -603,6 +603,7 @@ function ZkRank() {
                                 index={index + 6}/>);
 
                         }}
+                        rowSelection={rowSelection}
                         footer={() => (
                             <Card>
                               <div style={{
