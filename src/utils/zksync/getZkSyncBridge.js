@@ -17,6 +17,22 @@ function getMonthNumber(d) {
     return d.getUTCFullYear() + "-" + (d.getUTCMonth() + 1);
 }
 
+const getEthPrice = async () => {
+    try {
+        const response = await axios.post('https://mainnet.era.zksync.io/', {
+            id: 42,
+            jsonrpc: '2.0',
+            method: 'zks_getTokenPrice',
+            params: ['0x0000000000000000000000000000000000000000'],
+        });
+        return response.data.result
+    } catch (e) {
+        console.log(e)
+        return 1950
+    }
+
+}
+
 function getZkSyncLastTX(lastTxDatetime) {
     const date = new Date(lastTxDatetime);
     const offset = 8;
@@ -38,32 +54,37 @@ function getZkSyncLastTX(lastTxDatetime) {
     }
 }
 
-function getAmount(address, list) {
+async function getAmount(address) {
+    const ethPrice = await getEthPrice();
+    var currentDate = new Date();
+    var formattedDate = currentDate.toISOString();
+    var encodedDate = encodeURIComponent(formattedDate);
+    const initUrl = `https://block-explorer-api.mainnet.zksync.io/address/${address}/transfers?toDate=${encodedDate}&limit=100&page=1`;
+    const response = await axios.get(initUrl)
+    var pageValue = parseInt(response.data.meta.totalPages);
     let totalExchangeAmount = 0;
-    for (let i = 0; i < list.length; i++) {
-        if (list[i]['from'].toLowerCase() === address.toLowerCase() && list[i]['to'].toLowerCase() !== "0x0000000000000000000000000000000000008001".toLowerCase()) {
-            const symbol = list[i]['tokenInfo']['symbol']
-            if (symbol === "ETH") {
-                const usdPrice = list[i]['tokenInfo']['usdPrice']
-                totalExchangeAmount += (parseInt(list[i]['amount'], 16) / 10 ** 18) * parseFloat(usdPrice)
-                break
-            } else if (list[i]['tokenInfo']['symbol'] === "USDC") {
-                totalExchangeAmount += parseInt(list[i]['amount'], 16) / 10 ** 6
-                break
-            }
-        } else if (list[i]['to'].toLowerCase() === address.toLowerCase() && list[i]['from'].toLowerCase() !== "0x0000000000000000000000000000000000008001".toLowerCase()) {
-            const symbol = list[i]['tokenInfo']['symbol']
-            if (symbol === "ETH") {
-                const usdPrice = list[i]['tokenInfo']['usdPrice']
-                totalExchangeAmount += (parseInt(list[i]['amount'], 16) / 10 ** 18) * parseFloat(usdPrice)
-                break
-            } else if (list[i]['tokenInfo']['symbol'] === "USDC") {
-                totalExchangeAmount += parseInt(list[i]['amount'], 16) / 10 ** 6
-                break
+    for (let i = 1; i <= pageValue; i++) {
+        const url = `https://block-explorer-api.mainnet.zksync.io/address/${address}/transfers?toDate=${encodedDate}&limit=100&page=${i}`;
+        const response = await axios.get(url);
+        const list = response.data.items;
+        for (let i = 0; i < list.length; i++) {
+            if (list[i]['token'] !== null && list[i]['type'] == "transfer") {
+                if (list[i]['from'].toLowerCase() === address.toLowerCase() && list[i]['to'].toLowerCase() !== "0x0000000000000000000000000000000000008001".toLowerCase() 
+                && list[i]['to'].toLowerCase() !== address.toLowerCase()) {
+                    const symbol = list[i]['token']['symbol']
+                    if (symbol === "ETH") {
+                        totalExchangeAmount += (list[i]['amount'] / 10 ** 18) * parseFloat(ethPrice)
+                    } 
+                    else if (list[i]['token']['symbol'] === "USDC") {
+                        totalExchangeAmount += list[i]['amount'] / 10 ** 6
+                    }
+                    // else if (list[i]['token']['symbol'] === "USD+") {
+                    //     totalExchangeAmount += list[i]['amount'] / 10 ** 6
+                    // }
+                }
             }
         }
     }
-    console.log(totalExchangeAmount)
     return totalExchangeAmount;
 }
 
@@ -83,15 +104,14 @@ async function processTransactions(
     l2Tol1Amount
 ) {
     for (let i = 0; i < list.length; i++) {
-        if (list[i]['balanceChanges'][0]['from'].toLowerCase() === address.toLowerCase()) {
-            totalExchangeAmount += getAmount(address, list[i]['erc20Transfers'])
+        if (list[i]['from'].toLowerCase() === address.toLowerCase()) {
             const receivedAt = new Date(Date.parse(list[i]['receivedAt']));
             if (zks2_last_tx === null) {
                 zks2_last_tx = getZkSyncLastTX(list[i]['receivedAt']);
                 console.log(zks2_last_tx)
             }
-            const contractAddress = list[i].data.contractAddress;
-            const fee = (parseInt(list[i].fee, 16) / 10 ** 18).toFixed(5)
+            const contractAddress = list[i]['to'];
+            const fee = (parseInt(list[i]['fee'], 16) / 10 ** 18).toFixed(5)
             totalFee += parseFloat(fee);
             contract.add(contractAddress)
             days.add(getDayNumber(receivedAt));
@@ -100,14 +120,14 @@ async function processTransactions(
         }
         if (list[i].isL1Originated === true) {
             l1Tol2Times++;
-            const value = ethers.formatEther(list[i].data.value, "ether");
+            const value = ethers.formatEther(list[i]['value'], "ether");
             l1Tol2Amount += parseFloat(value);
         } else if (
-            list[i].data.contractAddress ===
-            "0x000000000000000000000000000000000000800a"
+            list[i]['to'] ===
+            "0x000000000000000000000000000000000000800A"
         ) {
             l2Tol1Times++;
-            const value = ethers.formatEther(list[i].data.value, "ether");
+            const value = ethers.formatEther(list[i]['value'], "ether");
             l2Tol1Amount += parseFloat(value);
         }
     }
@@ -133,71 +153,39 @@ async function getZkSyncBridge(address) {
         let l2Tol1Times = 0;
         let l2Tol1Amount = 0;
         let totalExchangeAmount = 0;
-        let offset = 0;
-        let fromBlockNumber = null;
-        let fromTxIndex = null;
-        const initUrl = "https://zksync2-mainnet-explorer.zksync.io/transactions?limit=100&direction=older&accountAddress=" + address;
-        const initResponse = await axios.get(initUrl)
-        const initDataLength = initResponse.data.total;
-        if (initDataLength > 100) {
-            fromBlockNumber = initResponse.data.list[0].blockNumber;
-            fromTxIndex = initResponse.data.list[0].indexInBlock;
-            while (true) {
-                let url = `https://zksync2-mainnet-explorer.zksync.io/transactions?limit=100&direction=older&accountAddress=${address}`;
-                if (fromBlockNumber !== undefined && fromTxIndex !== undefined && offset !== 0) {
-                    url += `&fromBlockNumber=${fromBlockNumber}&fromTxIndex=${fromTxIndex}&offset=${offset}`;
-                }
-                const response = await axios.get(url);
-                const ListLength = response.data.list.length;
-                [zks2_last_tx,
-                 totalExchangeAmount, totalFee, contract, days, weeks, months, l1Tol2Times, l1Tol2Amount,
-                 l2Tol1Times, l2Tol1Amount] =
-                    await processTransactions(
-                        zks2_last_tx,
-                        totalExchangeAmount,
-                        address,
-                        totalFee,
-                        contract,
-                        days,
-                        weeks,
-                        months,
-                        response.data.list,
-                        l1Tol2Times,
-                        l1Tol2Amount,
-                        l2Tol1Times,
-                        l2Tol1Amount
-                    );
-                if (ListLength === 100) {
-                    offset += ListLength;
-                } else {
-                    break;
-                }
-            }
-        } else {
-            [zks2_last_tx, totalExchangeAmount, totalFee, contract, days, weeks, months, l1Tol2Times, l1Tol2Amount,
-                l2Tol1Times,
-                l2Tol1Amount] =
-                   await processTransactions(
-                       zks2_last_tx,
-                       totalExchangeAmount,
-                       address,
-                       totalFee,
-                       contract,
-                       days,
-                       weeks,
-                       months,
-                       initResponse.data.list,
-                       l1Tol2Times,
-                       l1Tol2Amount,
-                       l2Tol1Times,
-                       l2Tol1Amount
-                   );
+        const initUrl = `https://block-explorer-api.mainnet.zksync.io/transactions?address=${address}&limit=100&page=1`;
+        const response = await axios.get(initUrl)
+        const pageValue = parseInt(response.data.meta.totalPages);
+        for (let i = 1; i <= pageValue; i++) {
+            const url = `https://block-explorer-api.mainnet.zksync.io/transactions?address=${address}&limit=100&page=${i}`;
+            const response = await axios.get(url);
+            const list = response.data.items;
+
+            [zks2_last_tx,
+                totalExchangeAmount, totalFee, contract, days, weeks, months, l1Tol2Times, l1Tol2Amount,
+                l2Tol1Times, l2Tol1Amount] =
+                await processTransactions(
+                    zks2_last_tx,
+                    totalExchangeAmount,
+                    address,
+                    totalFee,
+                    contract,
+                    days,
+                    weeks,
+                    months,
+                    list,
+                    l1Tol2Times,
+                    l1Tol2Amount,
+                    l2Tol1Times,
+                    l2Tol1Amount
+                )
         }
+        totalExchangeAmount = await getAmount(address);
         dayActivity = days.size;
         weekActivity = weeks.size;
         monthActivity = months.size;
         contractActivity = contract.size;
-        console.log("zks2_last_tx", zks2_last_tx);
+        // console.log("zks2_last_tx", zks2_last_tx);
         return {
             zks2_last_tx: zks2_last_tx === null ? "无交易" : zks2_last_tx,
             totalExchangeAmount: totalExchangeAmount.toFixed(2),
