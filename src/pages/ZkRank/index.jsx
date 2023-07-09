@@ -47,7 +47,7 @@ function ZkRank() {
     const [isWalletModalVisible, setIsWalletModalVisible] = useState(false);
     const [batchForm] = Form.useForm();
     const [walletForm] = Form.useForm();
-    const [selectedKeys, setSelectedKeys] = useState([]);
+    const [selectedKeys, setSelectedKeys] = useState([allKeys]);
     const [form] = Form.useForm();
     const [isModalVisible, setIsModalVisible] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
@@ -335,7 +335,6 @@ function ZkRank() {
    
     const rowSelection = {
         selectedRowKeys: selectedKeys,
-        setSelectedKeys(selectedRowKeys);
         onChange: (selectedRowKeys) => {
             setSelectedKeys(selectedRowKeys);
         },
